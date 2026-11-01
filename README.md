@@ -4,9 +4,17 @@
 
 Nasceu da minha experiência em Logística e PCP: estoque, produção e vendas espalhados em planilhas que não conversam, falta de insumo no meio da produção e estoque que nunca bate.
 
-> 🔒 O código-fonte é privado porque o sistema roda em produção. Este repositório mostra o produto, a arquitetura e as decisões técnicas. Demonstração ao vivo sob pedido.
+> 🔒 O código-fonte é privado porque o sistema roda em produção. Este repositório mostra o produto, a arquitetura e as decisões técnicas. Demonstração ao vivo sob pedido pelo [LinkedIn](https://www.linkedin.com/in/mateus-fernandes-623b0926b/).
 
-<!-- PRINTS: dashboard, ordem de produção e PDV entram aqui -->
+![Dashboard com indicadores, vendas dos últimos 14 dias e produtos mais vendidos](prints/dashboard.jpg)
+
+| Ordens de produção | Frente de caixa |
+|---|---|
+| ![Lista de ordens de produção com status e alerta de risco](prints/ordens-de-producao.jpg) | ![Frente de caixa com carrinho e forma de pagamento](prints/pdv.jpg) |
+
+![Auditoria mostrando quem fez o quê e quando](prints/auditoria.jpg)
+
+*Imagens feitas com dados fictícios de demonstração, de uma metalúrgica inventada.*
 
 ## O que ele faz
 
@@ -19,7 +27,9 @@ Nasceu da minha experiência em Logística e PCP: estoque, produção e vendas e
 | 🛒 **PDV** | Frente de caixa com baixa automática no estoque |
 | 🔎 **Busca e chat** | Busca tolerante a erros de digitação e assistente de consulta |
 | 📄 **Relatórios** | Excel, PDF e ordem de compra |
+| 📊 **Dashboard** | Vendas dos últimos 14 dias e produtos mais vendidos |
 | 👥 **Acesso** | Perfis de administrador e operador, recuperação de senha por e-mail |
+| 🧾 **Auditoria** | Registro de quem fez o quê e quando, sem permitir alterar ou apagar |
 
 ## Arquitetura
 
@@ -31,6 +41,8 @@ flowchart LR
     R --> T[Telegram<br/>alertas]
     M[UptimeRobot] -->|/health a cada 5 min| R
     A[GitHub Actions] -->|backup diário criptografado| S
+    A -->|restauração testada a cada backup| P[(PostgreSQL<br/>temporário)]
+    A -->|teste mensal de e-mail| B
 ```
 
 **Stack:** Python, Flask, PostgreSQL, Jinja, scikit-learn, Pandas, ReportLab, Gunicorn, GitHub Actions.
@@ -75,6 +87,18 @@ for tentativa in range(3):
 ### 4. Permissão se verifica no servidor
 Esconder um botão não protege nada: quem sabe mexer manda o pedido direto. Cada rota sensível checa o perfil no servidor, e os testes simulam um operador enviando requisições diretas às rotas de administrador.
 
+### 5. Backup só vale depois de restaurado
+**Problema:** um arquivo de backup pode existir e mesmo assim não funcionar. No primeiro teste de restauração, ele falhou porque o schema já existia no banco novo.
+
+**Solução:** a cada backup, o robô restaura a cópia em um PostgreSQL temporário e compara as tabelas principais com o banco real. Se a prova falhar, a execução fica vermelha.
+
+**Lição:** falhar no teste é melhor do que falhar no desastre.
+
+### 6. Auditoria que nem o sistema consegue apagar
+**Problema:** um histórico comum pode ser alterado por quem tem acesso a ele.
+
+**Solução:** as ações importantes vão para uma tabela protegida por um gatilho (*trigger*) que bloqueia `UPDATE` e `DELETE` no próprio banco. Se o registro falhar, a operação principal continua, para que o histórico nunca derrube o sistema.
+
 ## Segurança
 
 - Proteção contra CSRF, XSS e clickjacking, com CSP e HSTS
@@ -82,7 +106,8 @@ Esconder um botão não protege nada: quem sabe mexer manda o pedido direto. Cad
 - Bloqueio após tentativas de login erradas
 - Consultas parametrizadas contra SQL injection
 - Row Level Security no banco e segredos só em variáveis de ambiente
-- Backup diário criptografado com AES-256
+- Backup diário criptografado com AES-256, com restauração testada automaticamente
+- Auditoria protegida no banco e chaves externas com o mínimo de permissão
 
 ## Como trabalho
 
@@ -90,4 +115,6 @@ Planejamento em 6 passos (produto, técnica, fluxos, design, dados e entregas), 
 
 ## Autor
 
-**Mateus Fernandes** — estudante de Análise e Desenvolvimento de Sistemas, com formação técnica em Logística e PCP.
+**Mateus Fernandes** — estudante de Análise e Desenvolvimento de Sistemas (Estácio), técnico em Logística (Firjan SENAI), com experiência como Jovem Aprendiz em PCP.
+
+💼 [LinkedIn](https://www.linkedin.com/in/mateus-fernandes-623b0926b/)
